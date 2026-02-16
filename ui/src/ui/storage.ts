@@ -1,6 +1,7 @@
 const KEY = "openclaw.control.settings.v1";
 
 import type { ThemeMode } from "./theme.ts";
+import { THEMES } from "./theme.ts";
 
 export type UiSettings = {
   gatewayUrl: string;
@@ -56,7 +57,7 @@ export function loadSettings(): UiSettings {
           : (typeof parsed.sessionKey === "string" && parsed.sessionKey.trim()) ||
             defaults.lastActiveSessionKey,
       theme:
-        parsed.theme === "light" || parsed.theme === "dark" || parsed.theme === "system"
+        typeof parsed.theme === "string" && THEMES.some((t) => t.id === parsed.theme)
           ? parsed.theme
           : defaults.theme,
       chatFocusMode:

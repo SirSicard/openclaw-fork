@@ -32,13 +32,13 @@ import {
 } from "./navigation.ts";
 import { saveSettings, type UiSettings } from "./storage.ts";
 import { startThemeTransition, type ThemeTransitionContext } from "./theme-transition.ts";
-import { resolveTheme, type ResolvedTheme, type ThemeMode } from "./theme.ts";
+import { resolveTheme, THEMES, type ThemeMode } from "./theme.ts";
 
 type SettingsHost = {
   settings: UiSettings;
   password?: string;
   theme: ThemeMode;
-  themeResolved: ResolvedTheme;
+  themeResolved: string;
   applySessionKey: string;
   sessionKey: string;
   tab: Tab;
@@ -263,14 +263,18 @@ export function syncThemeWithSettings(host: SettingsHost) {
   applyResolvedTheme(host, resolveTheme(host.theme));
 }
 
-export function applyResolvedTheme(host: SettingsHost, resolved: ResolvedTheme) {
+export function applyResolvedTheme(host: SettingsHost, resolved: string) {
   host.themeResolved = resolved;
   if (typeof document === "undefined") {
     return;
   }
   const root = document.documentElement;
   root.dataset.theme = resolved;
-  root.style.colorScheme = resolved;
+
+  // Determine color scheme (light/dark) based on theme metadata
+  const themeInfo = THEMES.find((t) => t.id === resolved);
+  const colorScheme = themeInfo?.group === "light" ? "light" : "dark";
+  root.style.colorScheme = colorScheme;
 }
 
 export function attachThemeListener(host: SettingsHost) {

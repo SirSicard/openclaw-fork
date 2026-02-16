@@ -10,6 +10,7 @@ import { OpenClawApp } from "./app.ts";
 import { ChatState, loadChatHistory } from "./controllers/chat.ts";
 import { icons } from "./icons.ts";
 import { iconForTab, pathForTab, titleForTab, type Tab } from "./navigation.ts";
+import { THEMES } from "./theme.ts";
 
 type SessionDefaultsSnapshot = {
   mainSessionKey?: string;
@@ -393,11 +394,63 @@ function resolveSessionOptions(
   return options;
 }
 
-const THEME_ORDER: ThemeMode[] = ["system", "light", "dark"];
+// Theme picker state management (inline)
+let themePickerOpen = false;
+let themePickerCloseHandler: ((e: MouseEvent) => void) | null = null;
 
 export function renderThemeToggle(state: AppViewState) {
-  const index = Math.max(0, THEME_ORDER.indexOf(state.theme));
+  const currentTheme = THEMES.find((t) => t.id === state.theme);
+  const currentName = currentTheme?.name ?? "Theme";
+  const currentAccent = currentTheme?.accent ?? "#ff5c5c";
+
+  const toggleDropdown = (event: MouseEvent) => {
+    event.stopPropagation();
+    themePickerOpen = !themePickerOpen;
+
+    if (themePickerOpen) {
+      // Add click-outside handler
+      themePickerCloseHandler = (e: MouseEvent) => {
+        const target = e.target as HTMLElement;
+        if (!target.closest(".theme-picker")) {
+          themePickerOpen = false;
+          if (themePickerCloseHandler) {
+            document.removeEventListener("click", themePickerCloseHandler);
+            themePickerCloseHandler = null;
+          }
+          (state as unknown as OpenClawApp).requestUpdate();
+        }
+      };
+      setTimeout(() => {
+        if (themePickerCloseHandler) {
+          document.addEventListener("click", themePickerCloseHandler);
+        }
+      }, 0);
+
+      // Add Escape key handler
+      const escapeHandler = (e: KeyboardEvent) => {
+        if (e.key === "Escape") {
+          themePickerOpen = false;
+          if (themePickerCloseHandler) {
+            document.removeEventListener("click", themePickerCloseHandler);
+            themePickerCloseHandler = null;
+          }
+          document.removeEventListener("keydown", escapeHandler);
+          (state as unknown as OpenClawApp).requestUpdate();
+        }
+      };
+      document.addEventListener("keydown", escapeHandler);
+    } else {
+      if (themePickerCloseHandler) {
+        document.removeEventListener("click", themePickerCloseHandler);
+        themePickerCloseHandler = null;
+      }
+    }
+
+    (state as unknown as OpenClawApp).requestUpdate();
+  };
+
   const applyTheme = (next: ThemeMode) => (event: MouseEvent) => {
+    event.stopPropagation();
     const element = event.currentTarget as HTMLElement;
     const context: ThemeTransitionContext = { element };
     if (event.clientX || event.clientY) {
@@ -405,76 +458,158 @@ export function renderThemeToggle(state: AppViewState) {
       context.pointerClientY = event.clientY;
     }
     state.setTheme(next, context);
+
+    // Close dropdown
+    themePickerOpen = false;
+    if (themePickerCloseHandler) {
+      document.removeEventListener("click", themePickerCloseHandler);
+      themePickerCloseHandler = null;
+    }
   };
 
+  const autoThemes = THEMES.filter((t) => t.group === "auto");
+  const darkThemes = THEMES.filter((t) => t.group === "dark");
+  const lightThemes = THEMES.filter((t) => t.group === "light");
+
   return html`
-    <div class="theme-toggle" style="--theme-index: ${index};">
-      <div class="theme-toggle__track" role="group" aria-label="Theme">
-        <span class="theme-toggle__indicator"></span>
-        <button
-          class="theme-toggle__button ${state.theme === "system" ? "active" : ""}"
-          @click=${applyTheme("system")}
-          aria-pressed=${state.theme === "system"}
-          aria-label="System theme"
-          title="System"
+    <div class="theme-picker">
+      <button
+        class="theme-picker__trigger"
+        @click=${toggleDropdown}
+        aria-expanded=${themePickerOpen}
+        aria-label="Select theme"
+      >
+        <span
+          class="theme-picker__dot"
+          style="background-color: ${currentAccent};"
+          aria-hidden="true"
+        ></span>
+        <span class="theme-picker__trigger-text">${currentName}</span>
+        <svg
+          class="theme-picker__chevron"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
         >
-          ${renderMonitorIcon()}
-        </button>
-        <button
-          class="theme-toggle__button ${state.theme === "light" ? "active" : ""}"
-          @click=${applyTheme("light")}
-          aria-pressed=${state.theme === "light"}
-          aria-label="Light theme"
-          title="Light"
-        >
-          ${renderSunIcon()}
-        </button>
-        <button
-          class="theme-toggle__button ${state.theme === "dark" ? "active" : ""}"
-          @click=${applyTheme("dark")}
-          aria-pressed=${state.theme === "dark"}
-          aria-label="Dark theme"
-          title="Dark"
-        >
-          ${renderMoonIcon()}
-        </button>
-      </div>
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </button>
+      
+      ${
+        themePickerOpen
+          ? html`
+            <div class="theme-picker__dropdown">
+              ${
+                autoThemes.length > 0
+                  ? html`
+                    <div class="theme-picker__group">
+                      <div class="theme-picker__group-label">Auto</div>
+                      ${repeat(
+                        autoThemes,
+                        (theme) => theme.id,
+                        (theme) => html`
+                          <button
+                            class="theme-picker__item ${state.theme === theme.id ? "active" : ""}"
+                            @click=${applyTheme(theme.id)}
+                          >
+                            <span
+                              class="theme-picker__dot"
+                              style="background-color: ${theme.accent ?? "transparent"};"
+                              aria-hidden="true"
+                            ></span>
+                            <span class="theme-picker__item-name">${theme.name}</span>
+                            ${
+                              state.theme === theme.id
+                                ? html`
+                                    <span class="theme-picker__check" aria-label="Selected">✓</span>
+                                  `
+                                : ""
+                            }
+                          </button>
+                        `,
+                      )}
+                    </div>
+                  `
+                  : ""
+              }
+              
+              ${
+                darkThemes.length > 0
+                  ? html`
+                    <div class="theme-picker__group">
+                      <div class="theme-picker__group-label">Dark</div>
+                      ${repeat(
+                        darkThemes,
+                        (theme) => theme.id,
+                        (theme) => html`
+                          <button
+                            class="theme-picker__item ${state.theme === theme.id ? "active" : ""}"
+                            @click=${applyTheme(theme.id)}
+                          >
+                            <span
+                              class="theme-picker__dot"
+                              style="background-color: ${theme.accent ?? "transparent"};"
+                              aria-hidden="true"
+                            ></span>
+                            <span class="theme-picker__item-name">${theme.name}</span>
+                            ${
+                              state.theme === theme.id
+                                ? html`
+                                    <span class="theme-picker__check" aria-label="Selected">✓</span>
+                                  `
+                                : ""
+                            }
+                          </button>
+                        `,
+                      )}
+                    </div>
+                  `
+                  : ""
+              }
+              
+              ${
+                lightThemes.length > 0
+                  ? html`
+                    <div class="theme-picker__group">
+                      <div class="theme-picker__group-label">Light</div>
+                      ${repeat(
+                        lightThemes,
+                        (theme) => theme.id,
+                        (theme) => html`
+                          <button
+                            class="theme-picker__item ${state.theme === theme.id ? "active" : ""}"
+                            @click=${applyTheme(theme.id)}
+                          >
+                            <span
+                              class="theme-picker__dot"
+                              style="background-color: ${theme.accent ?? "transparent"};"
+                              aria-hidden="true"
+                            ></span>
+                            <span class="theme-picker__item-name">${theme.name}</span>
+                            ${
+                              state.theme === theme.id
+                                ? html`
+                                    <span class="theme-picker__check" aria-label="Selected">✓</span>
+                                  `
+                                : ""
+                            }
+                          </button>
+                        `,
+                      )}
+                    </div>
+                  `
+                  : ""
+              }
+            </div>
+          `
+          : ""
+      }
     </div>
-  `;
-}
-
-function renderSunIcon() {
-  return html`
-    <svg class="theme-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="4"></circle>
-      <path d="M12 2v2"></path>
-      <path d="M12 20v2"></path>
-      <path d="m4.93 4.93 1.41 1.41"></path>
-      <path d="m17.66 17.66 1.41 1.41"></path>
-      <path d="M2 12h2"></path>
-      <path d="M20 12h2"></path>
-      <path d="m6.34 17.66-1.41 1.41"></path>
-      <path d="m19.07 4.93-1.41 1.41"></path>
-    </svg>
-  `;
-}
-
-function renderMoonIcon() {
-  return html`
-    <svg class="theme-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"
-      ></path>
-    </svg>
-  `;
-}
-
-function renderMonitorIcon() {
-  return html`
-    <svg class="theme-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <rect width="20" height="14" x="2" y="3" rx="2"></rect>
-      <line x1="8" x2="16" y1="21" y2="21"></line>
-      <line x1="12" x2="12" y1="17" y2="21"></line>
-    </svg>
   `;
 }
