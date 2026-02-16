@@ -345,6 +345,31 @@ export type MemorySearchConfig = {
   };
 };
 
+export type CustomToolParameterConfig = {
+  type?: "string" | "number" | "boolean";
+  required?: boolean;
+  description?: string;
+  default?: string | number | boolean;
+};
+
+export type CustomToolDefinition = {
+  name: string;
+  description: string;
+  label?: string;
+  /** HTTP endpoint URL. */
+  endpoint?: string;
+  /** HTTP method (default: POST). */
+  method?: "GET" | "POST" | "PUT" | "DELETE";
+  /** Additional HTTP headers. */
+  headers?: Record<string, string>;
+  /** Shell command to execute. */
+  script?: string;
+  /** Tool parameters. */
+  parameters?: Record<string, CustomToolParameterConfig>;
+  /** Execution timeout in seconds (default: 30). */
+  timeoutSeconds?: number;
+};
+
 export type ToolsConfig = {
   /** Base tool profile applied before allow/deny lists. */
   profile?: ToolProfileId;
@@ -497,4 +522,6 @@ export type ToolsConfig = {
       deny?: string[];
     };
   };
+  /** Custom tools defined in config (HTTP endpoint or script execution). */
+  custom?: CustomToolDefinition[];
 };

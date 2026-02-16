@@ -18,6 +18,12 @@ import { createSessionsListTool } from "./tools/sessions-list-tool.js";
 import { createSessionsSendTool } from "./tools/sessions-send-tool.js";
 import { createSessionsSpawnTool } from "./tools/sessions-spawn-tool.js";
 import { createSubagentsTool } from "./tools/subagents-tool.js";
+import { createAgentBoardTool } from "./tools/agent-board-tool.js";
+import { createCustomTools } from "./tools/custom-tools.js";
+import { createKnowledgeStoreTool } from "./tools/knowledge-store-tool.js";
+import { createSessionTemplateTool } from "./tools/session-template-tool.js";
+import { createTaskQueueTool } from "./tools/task-queue-tool.js";
+import { createWorkflowTool } from "./tools/workflow-tool.js";
 import { createTtsTool } from "./tools/tts-tool.js";
 import { createWebFetchTool, createWebSearchTool } from "./tools/web-tools.js";
 import { resolveWorkspaceRoot } from "./workspace-dir.js";
@@ -151,6 +157,21 @@ export function createOpenClawTools(options?: {
     createSubagentsTool({
       agentSessionKey: options?.agentSessionKey,
     }),
+    createAgentBoardTool(),
+    createKnowledgeStoreTool(),
+    createTaskQueueTool(),
+    createSessionTemplateTool({
+      agentSessionKey: options?.agentSessionKey,
+    }),
+    createWorkflowTool({
+      agentSessionKey: options?.agentSessionKey,
+      agentChannel: options?.agentChannel,
+      agentAccountId: options?.agentAccountId,
+      agentTo: options?.agentTo,
+      agentThreadId: options?.agentThreadId,
+      sandboxed: options?.sandboxed,
+      requesterAgentIdOverride: options?.requesterAgentIdOverride,
+    }),
     createSessionStatusTool({
       agentSessionKey: options?.agentSessionKey,
       config: options?.config,
@@ -178,5 +199,16 @@ export function createOpenClawTools(options?: {
     toolAllowlist: options?.pluginToolAllowlist,
   });
 
-  return [...tools, ...pluginTools];
+  const allToolNames = new Set([
+    ...tools.map((t) => t.name),
+    ...pluginTools.map((t) => t.name),
+  ]);
+
+  const customToolConfigs = options?.config?.tools?.custom;
+  const customTools = createCustomTools({
+    customToolConfigs: customToolConfigs as import("./tools/custom-tools.js").CustomToolConfig[],
+    existingToolNames: allToolNames,
+  });
+
+  return [...tools, ...pluginTools, ...customTools];
 }
